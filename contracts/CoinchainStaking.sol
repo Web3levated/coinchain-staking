@@ -62,7 +62,6 @@ contract CoinchainStaking {
 
     }
 
-    function
 
     /*//////////////////////////////////////////////////////////////
                         PUBLIC FUNCTIONS
