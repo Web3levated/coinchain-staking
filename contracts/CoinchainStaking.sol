@@ -4,7 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract CoinchainStaking {
+contract CoinchainStaking is Ownable{
     /*/////////////////////////////////////////////////////////////
                         DATA STRUCTURES 
     /////////////////////////////////////////////////////////////*/
@@ -40,9 +40,9 @@ contract CoinchainStaking {
                         EVENTS
     /////////////////////////////////////////////////////////////*/
 
-    event Deposit();
-    event withdrawl();
-    event Mint();
+    event TokensDeposited();
+    event TokensWithdrawn();
+    event TokensMinted();
 
     /*/////////////////////////////////////////////////////////////
                         CONSTRUCTOR
@@ -73,7 +73,7 @@ contract CoinchainStaking {
         uint256[] memory lockups,
         uint256[] memory depositTimes
     ) external onlyOwner {
-        require(users.length == amounts.length == lockups.length == depositTimes.length, "Error: List length mismatch");
+        require(users.length == amounts.length && users.length == lockups.length && users.length == depositTimes.length, "Error: List length mismatch");
         for (uint256 i = 0; i < amounts.length; i++) {
             require(users[i] != address(0), "Error: Address cannot be zero address");
             require(amounts[i] > 0, "Error: Invalid amount");
