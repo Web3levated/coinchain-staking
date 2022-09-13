@@ -26,6 +26,8 @@ contract CoinchainStaking {
     uint256 depositId;
     // CCH token
     IERC20 public CCH;
+    // Mapping of deposit ID to deposit strcut
+    mapping(uint256 => Deposit) public deposits; 
 
     /*/////////////////////////////////////////////////////////////
                         EVENTS
@@ -41,6 +43,8 @@ contract CoinchainStaking {
 
     constructor(address _CCHAddress) {
         CCH = IERC20(_CCHAddress);
+        dailyMintAllowance = 0;
+        depositId = 0;
     }
 
     /*//////////////////////////////////////////////////////////////
