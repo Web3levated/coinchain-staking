@@ -68,15 +68,12 @@ contract CoinchainStaking is Ownable{
     //////////////////////////////////////////////////////////////*/
 
     function deposit(
-        address[] memory users,
-        uint256[] memory amounts,
-        uint256[] memory lockups,
-        uint256[] memory depositTimes
+        Deposit[] memory _deposits
     ) external onlyOwner {
-        require(users.length == amounts.length && users.length == lockups.length && users.length == depositTimes.length, "Error: List length mismatch");
-        for (uint256 i = 0; i < amounts.length; i++) {
-            require(users[i] != address(0), "Error: Address cannot be zero address");
-            require(amounts[i] > 0, "Error: Invalid amount");
+        // require(users.length == amounts.length && users.length == lockups.length && users.length == depositTimes.length, "Error: List length mismatch");
+        for (uint256 i = 0; i < _deposits.length; i++) {
+            require(_deposits[i].user != address(0), "Error: Address cannot be zero address");
+            require(_deposits[i].amount > 0, "Error: Invalid amount");
 
         }
     }

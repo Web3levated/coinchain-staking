@@ -30,26 +30,32 @@ describe("CoinchainStaking", () => {
 
     describe("deposit", async () => {
         it("Should revert if caller is not the owner", async () => {
-            let users = [
-                addr1.address
-            ];
-            let amounts = [
-                ethers.utils.parseEther("100")
-            ];
-            let lockup = await getBlockTime() + 600 
-            let lockups = [
-                lockup 
-            ];
-            let depositTimes = [
-                await getBlockTime()
-            ];
 
-            await expect( coinchainStaking.connect(addr1).deposit(
-                users,
-                amounts,
-                lockups,
-                depositTimes
-            ) ).to.be.revertedWith("Ownable: caller is not the owner")
+            let lockupTime = await getBlockTime() + 600 
+            let deposit: CoinchainStaking.DepositStruct = {
+                user: addr1.address,
+                amount: ethers.utils.parseEther("100"),
+                lockUp: lockupTime,
+                depositTime: await getBlockTime()
+            }
+
+            await expect( coinchainStaking.connect(addr1).deposit([deposit]))
+                .to.be.revertedWith("Ownable: caller is not the owner")
         })
+
+        it("Should revert if zero address passed as user", async () => {
+            let lockupTime = await getBlockTime() + 600 
+            let deposit: CoinchainStaking.DepositStruct = {
+                user: ethers.constants.AddressZero,
+                amount: ethers.utils.parseEther("100"),
+                lockUp: lockupTime,
+                depositTime: await getBlockTime()
+            }
+
+            await expect( coinchainStaking.connect(owner).deposit([deposit]))
+                .to.be.revertedWith("Error: Address cannot be zero address")
+        })
+
+
     })
 })
