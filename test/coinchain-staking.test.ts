@@ -28,6 +28,18 @@ describe("CoinchainStaking", () => {
         })
     })
 
+    describe("setYieldConfig", async () => {
+        it("Should set yieldConfig 0", async () => {
+            let expectedYieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 600,
+                rate: ethers.utils.parseEther("100")
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, expectedYieldConfig);
+            expect((await coinchainStaking.yieldConfigs(0)).lockupTime).to.equal(expectedYieldConfig.lockupTime);
+            expect((await coinchainStaking.yieldConfigs(0)).rate).to.equal(expectedYieldConfig.rate);
+        })
+    })
+
     describe("deposit", async () => {
         it("Should revert if caller is not the owner", async () => {
 
@@ -41,7 +53,7 @@ describe("CoinchainStaking", () => {
 
             await expect( coinchainStaking.connect(addr1).deposit([deposit]))
                 .to.be.revertedWith("Ownable: caller is not the owner")
-        })
+        });
 
         it("Should revert if zero address passed as user", async () => {
             let lockupTime = await getBlockTime() + 600 
@@ -54,7 +66,32 @@ describe("CoinchainStaking", () => {
 
             await expect( coinchainStaking.connect(owner).deposit([deposit]))
                 .to.be.revertedWith("Error: Address cannot be zero address")
-        })
+        });
+
+        it("Should revert if zero amount is passed", async () => {
+            let lockupTime = await getBlockTime() + 600 
+            let deposit: CoinchainStaking.DepositStruct = {
+                user: addr1.address,
+                amount: ethers.constants.Zero,
+                lockUp: lockupTime,
+                depositTime: await getBlockTime()
+            }
+
+            await expect( coinchainStaking.connect(owner).deposit([deposit]))
+                .to.be.revertedWith("Error: Invalid amount")
+        });
+
+        // it("Should revert if lockup config not set", async () => {
+        //     let deposit: CoinchainStaking.DepositStruct = {
+        //         user: addr1.address,
+        //         amount: ethers.utils.parseEther("100"),
+        //         lockUp: ethers.constants.Two,
+        //         depositTime: await getBlockTime()
+        //     }
+
+        //     await expect( coinchainStaking.connect(addr1).deposit([deposit]))
+        //         .to.be.revertedWith("Error: invalid lockup")
+        // })
 
 
     })

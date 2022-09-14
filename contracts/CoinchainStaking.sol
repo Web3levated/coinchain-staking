@@ -9,14 +9,18 @@ contract CoinchainStaking is Ownable{
                         DATA STRUCTURES 
     /////////////////////////////////////////////////////////////*/
 
-    struct Deposit {
+    struct DepositData {
         address user;
         uint256 amount;
         uint256 lockUp;
         uint256 depositTime;
     }
+    struct Deposit {
+        uint256 depositId;
+        DepositData depositData;
+    }
 
-    struct LockupConfig {
+    struct YieldConfig {
         uint256 lockupTime;
         uint256 rate;
     }
@@ -33,14 +37,16 @@ contract CoinchainStaking is Ownable{
     IERC20 public CCH;
     // Mapping of address to mapping of deposit ID to deposit strcut
     mapping(address => mapping(uint256 => Deposit)) public deposits;
+    mapping(address => Deposit[]) public ddeposits;
+    // depositIdToIndexMapping
     // Mapping of
-    mapping(uint256 => LockupConfig) public lockups;
+    mapping(uint256 => YieldConfig) public yieldConfigs;
 
     /*/////////////////////////////////////////////////////////////
                         EVENTS
     /////////////////////////////////////////////////////////////*/
 
-    event TokensDeposited();
+    event TokensDeposited(Deposit[] indexed deposits);
     event TokensWithdrawn();
     event TokensMinted();
 
@@ -58,31 +64,41 @@ contract CoinchainStaking is Ownable{
                         VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function getRewards(uint256 depositId) external view returns (uint256 rewards) {
+    function getRewards(uint256 depositId) public view returns (uint256 rewards) {
 
     }
 
 
     /*//////////////////////////////////////////////////////////////
-                        PUBLIC FUNCTIONS
+                        ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     function deposit(
-        Deposit[] memory _deposits
+        DepositData[] memory _deposits
     ) external onlyOwner {
-        // require(users.length == amounts.length && users.length == lockups.length && users.length == depositTimes.length, "Error: List length mismatch");
+        uint256 total = 0;
         for (uint256 i = 0; i < _deposits.length; i++) {
             require(_deposits[i].user != address(0), "Error: Address cannot be zero address");
             require(_deposits[i].amount > 0, "Error: Invalid amount");
-
+            // require(lockups[_deposits[i].lockUp].rate != 0, "Error: invalid lockup")
+            total += _deposits[i].amount;
+            deposits[_deposits[i].user][depositId] = Deposit(depositId, _deposits[i]);
+            depositId++;
         }
+        IERC20(CCH).transferFrom(msg.sender, address(this), total);
+        // emit TokensDeposited(_deposits);
     }
 
     function withdrawl(uint256 depositId) external onlyOwner {
-
+        
     }
 
     function mint() external onlyOwner {
 
+    }
+
+    function setYieldConfig(uint256 yieldConfigId, YieldConfig calldata config) external onlyOwner {
+        require(yieldConfigs[yieldConfigId].rate == 0, "Error: YieldConfig for id already configured");
+        yieldConfigs[yieldConfigId] = config;
     }
 }
