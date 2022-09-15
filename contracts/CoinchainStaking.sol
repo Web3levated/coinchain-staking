@@ -50,7 +50,13 @@ contract CoinchainStaking is Ownable {
                         EVENTS
     /////////////////////////////////////////////////////////////*/
 
-    event TokensDeposited(Deposit[] indexed deposits);
+    event TokensDeposited(
+        uint256 indexed depositId, 
+        address indexed user, 
+        uint256 amount, 
+        uint256 indexed yieldIdConfig, 
+        uint256 depositTime
+    );
     event TokensWithdrawn();
     event TokensMinted();
 
@@ -93,10 +99,16 @@ contract CoinchainStaking is Ownable {
             deposits[_deposits[i].depositId] = _deposits[i].data;
             EnumerableSet.UintSet storage depositSet = depositsByAddress[_deposits[i].data.user];
             depositSet.add(_deposits[i].depositId);
+            emit TokensDeposited(
+                _deposits[i].depositId, 
+                _deposits[i].data.user, 
+                _deposits[i].data.amount,
+                _deposits[i].data.yieldConfigId,
+                _deposits[i].data.depositTime
+            );
             // depositId++;
         }
         IERC20(CCH).transferFrom(msg.sender, address(this), total);
-        // emit TokensDeposited(_deposits);
     }
 
     function withdrawl(uint256 depositId) external onlyOwner {
