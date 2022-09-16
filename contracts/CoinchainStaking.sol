@@ -2,11 +2,16 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract CoinchainStaking is Ownable {
+contract CoinchainStaking is AccessControlEnumerable {
     using EnumerableSet for EnumerableSet.UintSet;
+
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+
     /*/////////////////////////////////////////////////////////////
                         DATA STRUCTURES 
     /////////////////////////////////////////////////////////////*/
@@ -31,8 +36,8 @@ contract CoinchainStaking is Ownable {
                         GLOBAL STATE
     /////////////////////////////////////////////////////////////*/
 
-    // Daily mintable allowance
-    uint256 dailyMintAllowance;
+    // mintable allowance
+    uint256 public mintAllowance;
     // CCH token
     IERC20 public CCH;
     // Mapping of depositIds to DepositData
@@ -60,9 +65,17 @@ contract CoinchainStaking is Ownable {
                         CONSTRUCTOR
     /////////////////////////////////////////////////////////////*/
 
-    constructor(address _CCHAddress) {
+    constructor(
+        address _CCHAddress,
+        address admin,
+        address operator,
+        address manager
+    ) {
         CCH = IERC20(_CCHAddress);
-        dailyMintAllowance = 0;
+        mintAllowance = 0;
+        _setupRole(DEFAULT_ADMIN_ROLE, admin);
+        _setupRole(OPERATOR_ROLE, operator);
+        _setupRole(MANAGER_ROLE, manager);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -71,7 +84,7 @@ contract CoinchainStaking is Ownable {
 
     function calculatePendingRewards(uint256 depositId) public view returns (uint256 rewards) {
         DepositData memory depositData = deposits[depositId];
-        rewards = (((depositData.amount / 100) * yieldConfigs[depositData.yieldConfigId].rate) / 31536000) * (block.timestamp - depositData.depositTime);  
+        rewards = (((depositData.amount / 1000) * yieldConfigs[depositData.yieldConfigId].rate) / 31536000) * (block.timestamp - depositData.depositTime);  
     }
 
     function getDepositsByUser(address _user) external view returns(uint256[] memory){
@@ -85,7 +98,7 @@ contract CoinchainStaking is Ownable {
 
     function deposit(
         Deposit[] calldata _deposits
-    ) external onlyOwner {
+    ) external onlyRole(OPERATOR_ROLE) {
         uint256 total = 0;
         for (uint256 i = 0; i < _deposits.length; i++) {
             require(_deposits[i].data.user != address(0), "Error: Address cannot be zero address");
@@ -104,23 +117,72 @@ contract CoinchainStaking is Ownable {
                 _deposits[i].data.depositTime
             );
         }
-        IERC20(CCH).transferFrom(msg.sender, address(this), total);
+        require(IERC20(CCH).transferFrom(msg.sender, address(this), total));
     }
 
-    function withdraw(uint256 depositId) external onlyOwner {
-        require(deposits[depositId].user != address(0), "Error: DepositId does not exist");
-        require(IERC20(CCH).transfer(msg.sender, deposits[depositId].amount));
-        depositsByAddress[deposits[depositId].user].remove(depositId);
+    function withdraw(uint256 depositId) external onlyRole(OPERATOR_ROLE) {
+        DepositData memory depositData = deposits[depositId];
+        require(depositData.user != address(0), "Error: DepositId does not exist");
+        require(yieldConfigs[depositData.yieldConfigId].lockupTime <= block.timestamp - depositData.depositTime, "Error: Minimum lockup time has not been met");
+        mintAllowance += calculatePendingRewards(depositId);
+        require(depositsByAddress[depositData.user].remove(depositId));
         delete deposits[depositId];
         emit TokensWithdrawn(depositId);
+        require(IERC20(CCH).transfer(msg.sender, depositData.amount));
     }
 
-    function mint() external onlyOwner {
+    function withdrawNoReward(uint256 depositId) external onlyRole(OPERATOR_ROLE) {
+        DepositData memory depositData = deposits[depositId];
+        require(depositData.user != address(0), "Error: DepositId does not exist");
+        depositsByAddress[depositData.user].remove(depositId);
+        delete deposits[depositId];
+        emit TokensWithdrawn(depositId);
+        require(IERC20(CCH).transfer(msg.sender, depositData.amount)); 
+    }
+
+    function mint() external onlyRole(OPERATOR_ROLE) {
 
     }
 
-    function setYieldConfig(uint256 yieldConfigId, YieldConfig calldata config) external onlyOwner {
+    function setYieldConfig(uint256 yieldConfigId, YieldConfig calldata config) external onlyRole(MANAGER_ROLE) {
         require(yieldConfigs[yieldConfigId].rate == 0, "Error: YieldConfig for id already configured");
         yieldConfigs[yieldConfigId] = config;
+    }
+
+
+    /**
+     * @dev Calls the public grantRole() function which verifies that the sender is a role admin
+     * @notice Grants the MANAGER_ROLE to given account
+     * @param _account Address to grant the MANAGER_ROLE to
+     */
+    function grantManagerRole(address _account) external {
+        grantRole(MANAGER_ROLE, _account);
+    }
+
+    /**
+     * @dev Calls the public revokeRole() function which verifies that the sender is a role admin
+     * @notice Revokes the MINTER_ROLE from given account
+     * @param _account Address to revoke the MINTER_ROLE from 
+     */
+    function revokeManagaerRole(address _account) external {
+        revokeRole(MANAGER_ROLE, _account);
+    }
+
+    /**
+     * @dev Calls the public grantRole() function which verifies that the sender is a role admin
+     * @notice Grants the OPERATOR_ROLE to given account
+     * @param _account Address to grant the OPERATOR_ROLE to
+     */
+    function grantOperatorRole(address _account) external {
+        grantRole(OPERATOR_ROLE, _account);
+    }
+
+    /**
+     * @dev Calls the public revokeRole() function which verifies that the sender is a role admin
+     * @notice Revokes the OPERATOR_ROLE from given account
+     * @param _account Address to revoke the OPERATOR_ROLE from 
+     */
+    function revokeOperatorRole(address _account) external {
+        revokeRole(OPERATOR_ROLE, _account);
     }
 }
