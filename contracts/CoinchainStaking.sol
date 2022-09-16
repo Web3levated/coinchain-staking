@@ -33,17 +33,13 @@ contract CoinchainStaking is Ownable {
 
     // Daily mintable allowance
     uint256 dailyMintAllowance;
-    // Deposit ID incrementor
-    // uint256 depositId;
     // CCH token
     IERC20 public CCH;
-    // Mapping of address to mapping of deposit ID to deposit strcut
-    // mapping(address => mapping(uint256 => Deposit)) public deposits;
-    // mapping(address => Deposit[]) public deposits;
+    // Mapping of depositIds to DepositData
     mapping(uint256 => DepositData) public deposits;
+    // Mapping of user addresses to associated deposits
     mapping(address => EnumerableSet.UintSet) private depositsByAddress;
-    // depositIdToIndexMapping
-    // Mapping of
+    // Mapping of YieldConfigIds to YieldConfig 
     mapping(uint256 => YieldConfig) public yieldConfigs;
 
     /*/////////////////////////////////////////////////////////////
@@ -57,7 +53,7 @@ contract CoinchainStaking is Ownable {
         uint256 indexed yieldIdConfig, 
         uint256 depositTime
     );
-    event TokensWithdrawn();
+    event TokensWithdrawn( uint256 indexed depositId );
     event TokensMinted();
 
     /*/////////////////////////////////////////////////////////////
@@ -95,6 +91,7 @@ contract CoinchainStaking is Ownable {
             require(_deposits[i].data.user != address(0), "Error: Address cannot be zero address");
             require(_deposits[i].data.amount > 0, "Error: Invalid amount");
             require(yieldConfigs[_deposits[i].data.yieldConfigId].rate != 0, "Error: invalid lockup");
+            require(deposits[_deposits[i].depositId].user == address(0), "Error: DepositId already exists");
             total += _deposits[i].data.amount;
             deposits[_deposits[i].depositId] = _deposits[i].data;
             EnumerableSet.UintSet storage depositSet = depositsByAddress[_deposits[i].data.user];
@@ -106,13 +103,16 @@ contract CoinchainStaking is Ownable {
                 _deposits[i].data.yieldConfigId,
                 _deposits[i].data.depositTime
             );
-            // depositId++;
         }
         IERC20(CCH).transferFrom(msg.sender, address(this), total);
     }
 
-    function withdrawl(uint256 depositId) external onlyOwner {
-        
+    function withdraw(uint256 depositId) external onlyOwner {
+        require(deposits[depositId].user != address(0), "Error: DepositId does not exist");
+        require(IERC20(CCH).transfer(msg.sender, deposits[depositId].amount));
+        depositsByAddress[deposits[depositId].user].remove(depositId);
+        delete deposits[depositId];
+        emit TokensWithdrawn(depositId);
     }
 
     function mint() external onlyOwner {

@@ -281,8 +281,44 @@ describe("CoinchainStaking", () => {
             ]
             // coinchainStaking.on(coinchainStaking.filters.TokensDeposited)
             await expect(coinchainStaking.connect(owner).deposit(expectedDeposits))
-                .to.be.revertedWith("DepositId already exists");
+                .to.be.revertedWith("Error: DepositId already exists");
 
+        })
+    })
+
+    describe("withdraw", async () => {
+        it("Should revert if depositId does not exist", async () => {
+            await expect(coinchainStaking.connect(owner).withdraw(1))
+                .to.be.revertedWith("Error: DepositId does not exist");
+        });
+
+        it("Should withdraw deposit", async () => {
+            await coinchainTokenMock.mint(owner.address, ethers.utils.parseEther("100"));
+            await coinchainTokenMock.approve(coinchainStaking.address, ethers.utils.parseEther("100"));
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 600,
+                rate: ethers.utils.parseEther("100")
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: ethers.utils.parseEther("100"),
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(owner).deposit([deposit])
+            await expect(coinchainStaking.connect(owner).withdraw(1))
+                .to.emit(
+                    coinchainStaking,
+                    "TokensWithdrawn"
+                ).withArgs(ethers.constants.One);
+            expect(await coinchainTokenMock.balanceOf(coinchainStaking.address)).to.equal(0);
+            expect(await coinchainTokenMock.balanceOf(owner.address)).to.equal(ethers.utils.parseEther("100"));
+            expect((await coinchainStaking.deposits(1)).user).to.equal(ethers.constants.AddressZero);
+            expect((await coinchainStaking.getDepositsByUser(addr1.address)).length).to.equal(0);
         })
     })
 })
