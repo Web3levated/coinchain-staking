@@ -63,15 +63,15 @@ contract CoinchainStaking is Ownable {
     constructor(address _CCHAddress) {
         CCH = IERC20(_CCHAddress);
         dailyMintAllowance = 0;
-        // depositId = 0;
     }
 
     /*//////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function getRewards(uint256 depositId) public view returns (uint256 rewards) {
-
+    function calculatePendingRewards(uint256 depositId) public view returns (uint256 rewards) {
+        DepositData memory depositData = deposits[depositId];
+        rewards = (((depositData.amount / 100) * yieldConfigs[depositData.yieldConfigId].rate) / 31536000) * (block.timestamp - depositData.depositTime);  
     }
 
     function getDepositsByUser(address _user) external view returns(uint256[] memory){

@@ -3,7 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { CoinchainStaking, ERC20Mock } from "../typechain-types";
-import { getBlockTime } from "./utils/helpers";
+import { getBlockTime, increaseTime } from "./utils/helpers";
 
 describe("CoinchainStaking", () => {
     let coinchainStaking: CoinchainStaking;
@@ -319,6 +319,31 @@ describe("CoinchainStaking", () => {
             expect(await coinchainTokenMock.balanceOf(owner.address)).to.equal(ethers.utils.parseEther("100"));
             expect((await coinchainStaking.deposits(1)).user).to.equal(ethers.constants.AddressZero);
             expect((await coinchainStaking.getDepositsByUser(addr1.address)).length).to.equal(0);
+        })
+    })
+
+    describe.only("calculatePendingRewards", async () => {
+        it("Should calculate rewards", async () => {
+            await coinchainTokenMock.mint(owner.address, ethers.utils.parseEther("31536000"));
+            await coinchainTokenMock.approve(coinchainStaking.address, ethers.utils.parseEther("31536000"));
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 60,
+                rate: 20
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: ethers.utils.parseEther("31536000"),
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(owner).deposit([deposit])
+            await increaseTime(60);
+            // await coinchainStaking.calculatePendingRewards(1);
+            console.log("rewards: ", ethers.utils.formatEther(await coinchainStaking.calculatePendingRewards(1)));
         })
     })
 })
