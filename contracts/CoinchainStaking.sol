@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 // import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "./interfaces/ICoinchainToken.sol";
 
 contract CoinchainStaking is AccessControlEnumerable {
     using EnumerableSet for EnumerableSet.UintSet;
@@ -39,7 +40,7 @@ contract CoinchainStaking is AccessControlEnumerable {
     // mintable allowance
     uint256 public mintAllowance;
     // CCH token
-    IERC20 public CCH;
+    address public CCH;
     // Mapping of depositIds to DepositData
     mapping(uint256 => DepositData) public deposits;
     // Mapping of user addresses to associated deposits
@@ -71,7 +72,7 @@ contract CoinchainStaking is AccessControlEnumerable {
         address operator,
         address manager
     ) {
-        CCH = IERC20(_CCHAddress);
+        CCH = _CCHAddress;
         mintAllowance = 0;
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
         _setupRole(OPERATOR_ROLE, operator);
@@ -141,7 +142,9 @@ contract CoinchainStaking is AccessControlEnumerable {
     }
 
     function mint() external onlyRole(OPERATOR_ROLE) {
-
+        uint256 allowance = mintAllowance;
+        mintAllowance = 0;
+        ICoinchainToken(CCH).mint(msg.sender, allowance);
     }
 
     function setYieldConfig(uint256 yieldConfigId, YieldConfig calldata config) external onlyRole(MANAGER_ROLE) {

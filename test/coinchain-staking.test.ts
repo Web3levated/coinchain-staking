@@ -289,7 +289,7 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    describe.only("withdraw", async () => {
+    describe("withdraw", async () => {
         it("Should revert if depositId does not exist", async () => {
             await expect(coinchainStaking.connect(addr1).withdraw(1))
                 .to.be.revertedWith("Error: DepositId does not exist");
@@ -355,8 +355,8 @@ describe("CoinchainStaking", () => {
 
     describe("calculatePendingRewards", async () => {
         it("Should calculate rewards", async () => {
-            await coinchainTokenMock.mint(owner.address, ethers.utils.parseEther("31536000"));
-            await coinchainTokenMock.approve(coinchainStaking.address, ethers.utils.parseEther("31536000"));
+            await coinchainTokenMock.mint(addr1.address, ethers.utils.parseEther("31536000"));
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, ethers.utils.parseEther("31536000"));
             let yieldConfig: CoinchainStaking.YieldConfigStruct = {
                 lockupTime: 10080,
                 rate: 55
@@ -371,14 +371,69 @@ describe("CoinchainStaking", () => {
                     depositTime: await getBlockTime()
                 }
             }
-            await coinchainStaking.connect(owner).deposit([deposit])
+            await coinchainStaking.connect(addr1).deposit([deposit])
             await increaseTime(10080);
-            // await coinchainStaking.calculatePendingRewards(1);
-            // console.log("rewards: ", ethers.utils.formatEther(await coinchainStaking.calculatePendingRewards(1)));
             expect(await coinchainStaking.calculatePendingRewards(1)).to.be.closeTo(
                 ethers.utils.parseEther("554.4"),
                 ethers.utils.parseEther(".5")
             );
+        })
+    })
+
+    describe("mint", async () => {
+        it("Should revert if caller is not an operator", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit]);
+            await increaseTime(10080);
+            await coinchainStaking.connect(addr1).withdraw(1);
+            await expect(coinchainStaking.connect(addr2).mint()).to.be.revertedWith(
+                "AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929"
+            )
+        })
+        it("Should mint amount stored in mintAllowance to the operator", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit])
+            await increaseTime(10080);
+            await coinchainStaking.connect(addr1).withdraw(1)
+            await coinchainStaking.connect(addr1).mint();
+
+            expect(await coinchainTokenMock.balanceOf(addr1.address)).to.be.closeTo(
+                ethers.utils.parseEther("31537008"),
+                ethers.utils.parseEther(".5")
+            );
+            expect(await coinchainStaking.mintAllowance()).to.equal(0);
         })
     })
 })
