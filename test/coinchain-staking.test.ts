@@ -32,7 +32,15 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    describe("setYieldConfig", async () => {
+    describe.only("setYieldConfig", async () => {
+        it("should revert if caller is not the manager", async () => {
+            let expectedYieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 600,
+                rate: ethers.utils.parseEther("100")
+            }
+            await expect(coinchainStaking.connect(addr2).setYieldConfig(0, expectedYieldConfig)).to.be.revertedWith("AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x241ecf16d79d0f8dbfb92cbc07fe17840425976cf0667f022fe9877caa831b08");
+        })
+
         it("Should set yieldConfig 0", async () => {
             let expectedYieldConfig: CoinchainStaking.YieldConfigStruct = {
                 lockupTime: 600,
@@ -289,7 +297,31 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    describe.only("withdraw", async () => {
+    describe("withdraw", async () => {
+        it("should revert if caller is not the operator", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit])
+            await increaseTime(10080);
+            await expect(coinchainStaking.connect(addr2).withdraw(1))
+                .to.be.revertedWith("AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929")
+        })
+        
         it("Should revert if depositId does not exist", async () => {
             await expect(coinchainStaking.connect(addr1).withdraw(1))
                 .to.be.revertedWith("Error: DepositId does not exist");
@@ -352,6 +384,69 @@ describe("CoinchainStaking", () => {
             )
         })
     })
+
+    describe("withdrawNoReward", async () => {
+        it("should revert if caller is not the operator", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit])
+            await expect(coinchainStaking.connect(addr2).withdrawNoReward(1))
+                .to.be.revertedWith("AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929")
+        })
+        
+        it("Should revert if depositId does not exist", async () => {
+            await expect(coinchainStaking.connect(addr1).withdrawNoReward(1))
+                .to.be.revertedWith("Error: DepositId does not exist");
+        });
+
+        it("Should withdraw deposit with no reward", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit])
+            await expect(coinchainStaking.connect(addr1).withdrawNoReward(1))
+                .to.emit(
+                    coinchainStaking,
+                    "TokensWithdrawn"
+                ).withArgs(ethers.constants.One);
+            expect(await coinchainTokenMock.balanceOf(coinchainStaking.address)).to.equal(0);
+            expect(await coinchainTokenMock.balanceOf(addr1.address)).to.equal(ethers.utils.parseEther("31536000"));
+            expect((await coinchainStaking.deposits(1)).user).to.equal(ethers.constants.AddressZero);
+            expect((await coinchainStaking.getDepositsByUser(addr1.address)).length).to.equal(0);
+            expect((await coinchainStaking.mintAllowance())).to.equal(0);
+        })
+    })
+
+    
 
     describe("calculatePendingRewards", async () => {
         it("Should calculate rewards", async () => {
@@ -437,27 +532,5 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    // describe.only("muldiv test", async () => {
-    //     it("should return 0", async () => {
-    //         await coinchainTokenMock.mint(addr1.address, 573382000);
-    //         await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, 573382000);
-    //         let yieldConfig: CoinchainStaking.YieldConfigStruct = {
-    //             lockupTime: 10080,
-    //             rate: 55
-    //         }
-    //         await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
-    //         let deposit: CoinchainStaking.DepositStruct = {
-    //             depositId: ethers.constants.One,
-    //             data: {
-    //                 user: addr1.address,
-    //                 amount: 573382000,
-    //                 yieldConfigId: ethers.constants.Zero,
-    //                 depositTime: await getBlockTime()
-    //             }
-    //         }
-    //         await coinchainStaking.connect(addr1).deposit([deposit])
-    //         await increaseTime(10080);
-    //         expect(await coinchainStaking.calculatePendingRewards(1)).to.equal(0);
-    //     })
-    // })
+    
 })

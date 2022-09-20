@@ -85,6 +85,7 @@ contract CoinchainStaking is AccessControlEnumerable {
 
     /**
      * @dev Reward rate is calculated per second
+     * For 10% apy, rate would equal 100
      * @notice Calculates the rewards earned for a desposit at any given time
      * @param depositId The ID of the deposit to calculate rewards for
      */
