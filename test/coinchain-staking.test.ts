@@ -289,7 +289,7 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    describe("withdraw", async () => {
+    describe.only("withdraw", async () => {
         it("Should revert if depositId does not exist", async () => {
             await expect(coinchainStaking.connect(addr1).withdraw(1))
                 .to.be.revertedWith("Error: DepositId does not exist");
@@ -436,4 +436,28 @@ describe("CoinchainStaking", () => {
             expect(await coinchainStaking.mintAllowance()).to.equal(0);
         })
     })
+
+    // describe.only("muldiv test", async () => {
+    //     it("should return 0", async () => {
+    //         await coinchainTokenMock.mint(addr1.address, 573382000);
+    //         await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, 573382000);
+    //         let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+    //             lockupTime: 10080,
+    //             rate: 55
+    //         }
+    //         await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+    //         let deposit: CoinchainStaking.DepositStruct = {
+    //             depositId: ethers.constants.One,
+    //             data: {
+    //                 user: addr1.address,
+    //                 amount: 573382000,
+    //                 yieldConfigId: ethers.constants.Zero,
+    //                 depositTime: await getBlockTime()
+    //             }
+    //         }
+    //         await coinchainStaking.connect(addr1).deposit([deposit])
+    //         await increaseTime(10080);
+    //         expect(await coinchainStaking.calculatePendingRewards(1)).to.equal(0);
+    //     })
+    // })
 })

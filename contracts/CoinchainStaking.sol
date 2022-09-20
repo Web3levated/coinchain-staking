@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
-// import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/ICoinchainToken.sol";
@@ -10,6 +9,7 @@ import "./interfaces/ICoinchainToken.sol";
 contract CoinchainStaking is AccessControlEnumerable {
     using EnumerableSet for EnumerableSet.UintSet;
 
+    // RBAC roles
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
@@ -37,7 +37,7 @@ contract CoinchainStaking is AccessControlEnumerable {
                         GLOBAL STATE
     /////////////////////////////////////////////////////////////*/
 
-    // mintable allowance
+    // Mintable allowance
     uint256 public mintAllowance;
     // CCH token
     address public CCH;
@@ -83,11 +83,23 @@ contract CoinchainStaking is AccessControlEnumerable {
                         VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Reward rate is calculated per second
+     * @notice Calculates the rewards earned for a desposit at any given time
+     * @param depositId The ID of the deposit to calculate rewards for
+     */
     function calculatePendingRewards(uint256 depositId) public view returns (uint256 rewards) {
         DepositData memory depositData = deposits[depositId];
-        rewards = (((depositData.amount / 1000) * yieldConfigs[depositData.yieldConfigId].rate) / 31536000) * (block.timestamp - depositData.depositTime);  
+        uint256 time = (block.timestamp - depositData.depositTime);
+        // uint256 rewardsOld = (((depositData.amount / 1000) * yieldConfigs[depositData.yieldConfigId].rate) / 31536000) * time; 
+        rewards = (depositData.amount * yieldConfigs[depositData.yieldConfigId].rate * time) / 31536e6;
     }
 
+    /**
+     * @dev Used to track deposit IDs of an address in order to withdraw
+     * @notice Returns the deposit IDs of an address
+     * @param _user The address of the user to retrieve deposits from
+     */
     function getDepositsByUser(address _user) external view returns(uint256[] memory){
         return depositsByAddress[_user].values();
     }
@@ -97,6 +109,11 @@ contract CoinchainStaking is AccessControlEnumerable {
                         ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Allows an Operator to create a batch of staking deposits
+     * @notice Creates a batch of staking deposits
+     * @param _deposits  List of Deposit structs containing User, Amount, Yield Config, Deposit ID and Deposit Time
+     */
     function deposit(
         Deposit[] calldata _deposits
     ) external onlyRole(OPERATOR_ROLE) {
@@ -109,7 +126,7 @@ contract CoinchainStaking is AccessControlEnumerable {
             total += _deposits[i].data.amount;
             deposits[_deposits[i].depositId] = _deposits[i].data;
             EnumerableSet.UintSet storage depositSet = depositsByAddress[_deposits[i].data.user];
-            depositSet.add(_deposits[i].depositId);
+            require(depositSet.add(_deposits[i].depositId));
             emit TokensDeposited(
                 _deposits[i].depositId, 
                 _deposits[i].data.user, 
@@ -121,6 +138,11 @@ contract CoinchainStaking is AccessControlEnumerable {
         require(IERC20(CCH).transferFrom(msg.sender, address(this), total));
     }
 
+    /**
+     * @dev Allows an Operator to withdraw (unstake) an individual deposit
+     * @notice Unstakes an individual deposit 
+     * @param depositId The ID of the deposit to be withdrawn
+     */
     function withdraw(uint256 depositId) external onlyRole(OPERATOR_ROLE) {
         DepositData memory depositData = deposits[depositId];
         require(depositData.user != address(0), "Error: DepositId does not exist");
@@ -132,21 +154,36 @@ contract CoinchainStaking is AccessControlEnumerable {
         require(IERC20(CCH).transfer(msg.sender, depositData.amount));
     }
 
+    /**
+     * @dev Allows an Operator to withdraw (unstake) before the lockup period is over
+     * @notice Unstakes a deposit before the end of a lockup period for no reward
+     * @param depositId The ID of the deposit to be withdrawn
+     */
     function withdrawNoReward(uint256 depositId) external onlyRole(OPERATOR_ROLE) {
         DepositData memory depositData = deposits[depositId];
         require(depositData.user != address(0), "Error: DepositId does not exist");
-        depositsByAddress[depositData.user].remove(depositId);
+        require(depositsByAddress[depositData.user].remove(depositId));
         delete deposits[depositId];
         emit TokensWithdrawn(depositId);
         require(IERC20(CCH).transfer(msg.sender, depositData.amount)); 
     }
 
+    /**
+     * @dev Can only be called by an Operator and will only mint what is in the mintAllowance
+     * @notice Mints CCH token to the caller's (Operator) address
+     */
     function mint() external onlyRole(OPERATOR_ROLE) {
         uint256 allowance = mintAllowance;
         mintAllowance = 0;
         ICoinchainToken(CCH).mint(msg.sender, allowance);
     }
 
+    /**
+     * @dev Can only be called by a Manager
+     * @notice Sets configuration (rate, lockup time) for a yield group
+     * @param yieldConfigId The ID of the yield config group to configure
+     * @param config The configuration parameters to set
+     */
     function setYieldConfig(uint256 yieldConfigId, YieldConfig calldata config) external onlyRole(MANAGER_ROLE) {
         require(yieldConfigs[yieldConfigId].rate == 0, "Error: YieldConfig for id already configured");
         yieldConfigs[yieldConfigId] = config;
