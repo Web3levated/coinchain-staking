@@ -30,6 +30,16 @@ describe("CoinchainStaking", () => {
         it("Should return correct initial values", async () => {
             expect( await coinchainStaking.CCH() ).to.equal(coinchainTokenMock.address);
         })
+
+        it("Should revert if CCH address is 0 address", async () => {
+            let coinchainStakingFactory = await ethers.getContractFactory("CoinchainStaking");
+            await expect(coinchainStakingFactory.deploy(
+                ethers.constants.AddressZero,
+                owner.address,
+                addr1.address,
+                owner.address
+            )).to.be.revertedWith("Error: _CCHAddress can't be zero");
+        })
     })
 
     describe("setYieldConfig", async () => {
@@ -49,6 +59,20 @@ describe("CoinchainStaking", () => {
             await coinchainStaking.connect(owner).setYieldConfig(0, expectedYieldConfig);
             expect((await coinchainStaking.yieldConfigs(0)).lockupTime).to.equal(expectedYieldConfig.lockupTime);
             expect((await coinchainStaking.yieldConfigs(0)).rate).to.equal(expectedYieldConfig.rate);
+        })
+
+        it("Should revert if yieldConfig already exists", async () => {
+            let yieldConfig1: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 600,
+                rate: ethers.utils.parseEther("100")
+            }
+            let yieldConfig2: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 1000,
+                rate: ethers.utils.parseEther("500")
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig1);
+            await expect(coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig2))
+                .to.be.revertedWith("Error: YieldConfig for id already configured")
         })
     })
 
