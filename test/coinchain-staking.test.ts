@@ -32,7 +32,7 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    describe.only("setYieldConfig", async () => {
+    describe("setYieldConfig", async () => {
         it("should revert if caller is not the manager", async () => {
             let expectedYieldConfig: CoinchainStaking.YieldConfigStruct = {
                 lockupTime: 600,
@@ -409,6 +409,31 @@ describe("CoinchainStaking", () => {
                 .to.be.revertedWith("AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929")
         })
         
+        it("should revert if lockup time has already been met", async () => {
+            let stakeAmount = ethers.utils.parseEther("31536000");
+            await coinchainTokenMock.mint(addr1.address, stakeAmount);
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, stakeAmount);
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 10080,
+                rate: 100
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+            let deposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: stakeAmount,
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime()
+                }
+            }
+            await coinchainStaking.connect(addr1).deposit([deposit])
+            await increaseTime(10080);
+            await expect(coinchainStaking.connect(addr1).withdrawNoReward(1))
+                .to.be.rejectedWith("Error: Minimum lockup has already been met");
+
+        })
+
         it("Should revert if depositId does not exist", async () => {
             await expect(coinchainStaking.connect(addr1).withdrawNoReward(1))
                 .to.be.revertedWith("Error: DepositId does not exist");
@@ -501,6 +526,11 @@ describe("CoinchainStaking", () => {
                 "AccessControl: account 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc is missing role 0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929"
             )
         })
+
+        it("should revert if mint allowance is zero", async () => {
+            await expect(coinchainStaking.connect(addr1).mint()).to.be.revertedWith("Error: Mint allowance can't be zero");
+        })
+
         it("Should mint amount stored in mintAllowance to the operator", async () => {
             let stakeAmount = ethers.utils.parseEther("31536000");
             await coinchainTokenMock.mint(addr1.address, stakeAmount);
@@ -532,5 +562,74 @@ describe("CoinchainStaking", () => {
         })
     })
 
-    
+    describe("rbac", async () => {
+        it("Should initialize roles correctly", async () => {
+            const defaultAdminRole = await coinchainStaking.DEFAULT_ADMIN_ROLE();
+            const operatorRole = await coinchainStaking.OPERATOR_ROLE();
+            const managerRole = await coinchainStaking.MANAGER_ROLE();
+            expect(await coinchainStaking.getRoleMemberCount(defaultAdminRole)).to.equal(1);
+            expect(await coinchainStaking.getRoleMemberCount(operatorRole)).to.equal(1);
+            expect(await coinchainStaking.getRoleMemberCount(managerRole)).to.equal(1);
+            expect(await coinchainStaking.hasRole(defaultAdminRole, owner.address)).to.be.true;
+            expect(await coinchainStaking.hasRole(operatorRole, addr1.address)).to.be.true;
+            expect(await coinchainStaking.hasRole(managerRole, owner.address)).to.be.true;
+        });
+
+        it("Should revert if caller does not have default admin role", async () => {
+            await expect(coinchainStaking.connect(addr2).grantManagerRole(addr1.address))
+                .to.be.reverted;
+            await expect(coinchainStaking.connect(addr2).grantOperatorRole(addr1.address))
+                .to.be.reverted;
+        });
+
+        it("Should grant the MANAGER_ROLE", async () => {
+            const managerRole = await coinchainStaking.MANAGER_ROLE();
+            await coinchainStaking.connect(owner).grantManagerRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(managerRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(managerRole, addr2.address)).to.be.true;
+        });
+
+        it("Should revoke the MANAGER_ROLE", async () => {
+            const managerRole = await coinchainStaking.MANAGER_ROLE();
+            await coinchainStaking.connect(owner).grantManagerRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(managerRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(managerRole, addr2.address)).to.be.true;
+            await coinchainStaking.connect(owner).revokeManagerRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(managerRole)).to.equal(1);
+            expect(await coinchainStaking.hasRole(managerRole, addr2.address)).to.be.false;
+        });
+
+        it("Should grant the OPERATOR_ROLE", async () => {
+            const operatorRole = await coinchainStaking.OPERATOR_ROLE();
+            await coinchainStaking.connect(owner).grantOperatorRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(operatorRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(operatorRole, addr2.address)).to.be.true;
+        });
+
+        it("Should revoke the OPERATOR_ROLE", async () => {
+            const operatorRole = await coinchainStaking.OPERATOR_ROLE();
+            await coinchainStaking.connect(owner).grantOperatorRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(operatorRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(operatorRole, addr2.address)).to.be.true;
+            await coinchainStaking.connect(owner).revokeOperatorRole(addr2.address);
+            expect(await coinchainStaking.getRoleMemberCount(operatorRole)).to.equal(1);
+            expect(await coinchainStaking.hasRole(operatorRole, addr2.address)).to.be.false;
+        });
+
+        it("Should revert when attempting to revoke without default admin role", async () => {
+            const operatorRole = await coinchainStaking.OPERATOR_ROLE();
+            const managerRole = await coinchainStaking.MANAGER_ROLE();
+            await coinchainStaking.connect(owner).grantManagerRole(addr3.address);
+            await coinchainStaking.connect(owner).grantOperatorRole(addr3.address);
+            expect(await coinchainStaking.getRoleMemberCount(managerRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(managerRole, addr3.address)).to.be.true;
+            expect(await coinchainStaking.getRoleMemberCount(operatorRole)).to.equal(2);
+            expect(await coinchainStaking.hasRole(operatorRole, addr3.address)).to.be.true;
+            await expect(coinchainStaking.connect(addr4).revokeManagerRole(addr3.address))
+                .to.be.reverted;
+            await expect(coinchainStaking.connect(addr4).revokeOperatorRole(addr3.address))
+                .to.be.reverted;
+        });
+
+    });
 })
