@@ -72,6 +72,7 @@ contract CoinchainStaking is AccessControlEnumerable {
         address operator,
         address manager
     ) {
+        require(_CCHAddress != address(0), "Error: _CCHAddress can't be zero");
         CCH = _CCHAddress;
         mintAllowance = 0;
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
@@ -163,6 +164,7 @@ contract CoinchainStaking is AccessControlEnumerable {
     function withdrawNoReward(uint256 depositId) external onlyRole(OPERATOR_ROLE) {
         DepositData memory depositData = deposits[depositId];
         require(depositData.user != address(0), "Error: DepositId does not exist");
+        require(yieldConfigs[depositData.yieldConfigId].lockupTime >= block.timestamp - depositData.depositTime, "Error: Minimum lockup has already been met");
         require(depositsByAddress[depositData.user].remove(depositId));
         delete deposits[depositId];
         emit TokensWithdrawn(depositId);
@@ -174,6 +176,7 @@ contract CoinchainStaking is AccessControlEnumerable {
      * @notice Mints CCH token to the caller's (Operator) address
      */
     function mint() external onlyRole(OPERATOR_ROLE) {
+        require(mintAllowance != 0, "Error: Mint allowance can't be zero");
         uint256 allowance = mintAllowance;
         mintAllowance = 0;
         ICoinchainToken(CCH).mint(msg.sender, allowance);
@@ -205,7 +208,7 @@ contract CoinchainStaking is AccessControlEnumerable {
      * @notice Revokes the MINTER_ROLE from given account
      * @param _account Address to revoke the MINTER_ROLE from 
      */
-    function revokeManagaerRole(address _account) external {
+    function revokeManagerRole(address _account) external {
         revokeRole(MANAGER_ROLE, _account);
     }
 
