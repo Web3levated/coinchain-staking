@@ -28,7 +28,6 @@ npm install
 - scripts are stored in the scripts folder and can be run using the npx command:
     - `npx hardhat run --network [mainnet, goerli etc...] [scipts/path/to/script]`
 ### CoinChainStaking
-#### token scripts are stored in scripts/coinchainToken
 - [deploy.ts](scripts/deploy.ts)
     - deploys [CoinchainToken.sol](contracts/CoinchainStaking.sol) to chosen network and writes contract address to console
     - verifies contract in etherscan
