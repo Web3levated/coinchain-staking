@@ -29,6 +29,6 @@ npm install
     - `npx hardhat run --network [mainnet, goerli etc...] [scipts/path/to/script]`
 ### CoinChainStaking
 - [deploy.ts](scripts/deploy.ts)
-    - deploys [CoinchainToken.sol](contracts/CoinchainStaking.sol) to chosen network and writes contract address to console
+    - deploys [CoinchainStaking.sol](contracts/CoinchainStaking.sol) to chosen network and writes contract address to console
     - verifies contract in etherscan
 
