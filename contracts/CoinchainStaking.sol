@@ -88,7 +88,8 @@ contract CoinchainStaking is AccessControlEnumerable {
      * @dev Reward rate is calculated per second
      * For 10% apy, rate would equal 100
      * @notice Calculates the rewards earned for a desposit at any given time
-     * @param depositId The ID of the deposit to calculate rewards for
+     * @param depositId The ID of the deposit to calculate rewards for a deposit
+     * @return rewards The amount of rewards earned by a deposit at time of execution
      */
     function calculatePendingRewards(uint256 depositId) public view returns (uint256 rewards) {
         DepositData memory depositData = deposits[depositId];
@@ -101,6 +102,7 @@ contract CoinchainStaking is AccessControlEnumerable {
      * @dev Used to track deposit IDs of an address in order to withdraw
      * @notice Returns the deposit IDs of an address
      * @param _user The address of the user to retrieve deposits from
+     * @return The deposit IDs deposited for a specific address
      */
     function getDepositsByUser(address _user) external view returns(uint256[] memory){
         return depositsByAddress[_user].values();
@@ -174,6 +176,7 @@ contract CoinchainStaking is AccessControlEnumerable {
     /**
      * @dev Can only be called by an Operator and will only mint what is in the mintAllowance
      * @notice Mints CCH token to the caller's (Operator) address
+     * @return tokensMinted The amount of tokens minted from allowance
      */
     function mint() external onlyRole(OPERATOR_ROLE) returns(uint256 tokensMinted) {
         require(mintAllowance != 0, "Error: Mint allowance can't be zero");
