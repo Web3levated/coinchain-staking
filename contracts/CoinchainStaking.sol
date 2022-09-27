@@ -60,7 +60,7 @@ contract CoinchainStaking is AccessControlEnumerable {
         uint256 depositTime
     );
     event TokensWithdrawn( uint256 indexed depositId );
-    event TokensMinted();
+    event TokensMinted( uint256 indexed amount );
 
     /*/////////////////////////////////////////////////////////////
                         CONSTRUCTOR
@@ -176,14 +176,13 @@ contract CoinchainStaking is AccessControlEnumerable {
     /**
      * @dev Can only be called by an Operator and will only mint what is in the mintAllowance
      * @notice Mints CCH token to the caller's (Operator) address
-     * @return tokensMinted The amount of tokens minted from allowance
      */
-    function mint() external onlyRole(OPERATOR_ROLE) returns(uint256 tokensMinted) {
+    function mint() external onlyRole(OPERATOR_ROLE) {
         require(mintAllowance != 0, "Error: Mint allowance can't be zero");
         uint256 allowance = mintAllowance;
         mintAllowance = 0;
         ICoinchainToken(CCH).mint(msg.sender, allowance);
-        return allowance;
+        emit TokensMinted(allowance);
     }
 
     /**
