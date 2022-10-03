@@ -6,6 +6,7 @@ import { CoinchainStaking, ERC20Mock } from "../typechain-types";
 import { getBlockTime, increaseTime } from "./utils/helpers";
 
 describe("CoinchainStaking", () => {
+    const WEEK = 604800;
     let coinchainStaking: CoinchainStaking;
     let coinchainTokenMock: ERC20Mock;
     let [owner, addr1, addr2, addr3, addr4, addr5, addr6, addr7, addr8, addr9]: SignerWithAddress[] = [];
@@ -20,7 +21,8 @@ describe("CoinchainStaking", () => {
             coinchainTokenMock.address,
             owner.address,
             addr1.address,
-            owner.address
+            owner.address,
+            WEEK
         );
 
         await coinchainStaking.deployed();
@@ -29,6 +31,7 @@ describe("CoinchainStaking", () => {
     describe("constructor", async () => {
         it("Should return correct initial values", async () => {
             expect( await coinchainStaking.CCH() ).to.equal(coinchainTokenMock.address);
+            expect( await coinchainStaking.maximumBackdate() ).to.equal( WEEK );
         })
 
         it("Should revert if CCH address is 0 address", async () => {
@@ -37,8 +40,20 @@ describe("CoinchainStaking", () => {
                 ethers.constants.AddressZero,
                 owner.address,
                 addr1.address,
-                owner.address
+                owner.address,
+                WEEK
             )).to.be.revertedWith("Error: _CCHAddress can't be zero");
+        })
+
+        it("Should revert if maximum backdate is 0", async () => {
+            let coinchainStakingFactory = await ethers.getContractFactory("CoinchainStaking");
+            await expect(coinchainStakingFactory.deploy(
+                coinchainTokenMock.address,
+                owner.address,
+                addr1.address,
+                owner.address,
+                0
+            )).to.be.revertedWith("Error: _maximumBackdate can't be zero");
         })
     })
 
@@ -317,6 +332,29 @@ describe("CoinchainStaking", () => {
             // coinchainStaking.on(coinchainStaking.filters.TokensDeposited)
             await expect(coinchainStaking.connect(addr1).deposit(expectedDeposits))
                 .to.be.revertedWith("Error: DepositId already exists");
+
+        })
+
+        it("Should revert if a deposit has a depositTime earlier than allowed", async () => {
+            await coinchainTokenMock.mint(addr1.address, ethers.utils.parseEther("100"));
+            await coinchainTokenMock.connect(addr1).approve(coinchainStaking.address, ethers.utils.parseEther("100"));
+            let yieldConfig: CoinchainStaking.YieldConfigStruct = {
+                lockupTime: 600,
+                rate: ethers.utils.parseEther("100")
+            }
+            await coinchainStaking.connect(owner).setYieldConfig(0, yieldConfig);
+
+            let expectedDeposit: CoinchainStaking.DepositStruct = {
+                depositId: ethers.constants.One,
+                data: {
+                    user: addr1.address,
+                    amount: ethers.utils.parseEther("100"),
+                    yieldConfigId: ethers.constants.Zero,
+                    depositTime: await getBlockTime() - (WEEK + 1)
+                }
+            }
+            await expect(coinchainStaking.connect(addr1).deposit([expectedDeposit]))
+                .to.be.revertedWith("Error: depositTime exceeds max backdate");
 
         })
     })

@@ -47,6 +47,8 @@ contract CoinchainStaking is AccessControlEnumerable {
     mapping(address => EnumerableSet.UintSet) private depositsByAddress;
     // Mapping of YieldConfigIds to YieldConfig 
     mapping(uint256 => YieldConfig) public yieldConfigs;
+    // Maximum amount of time that a depositTime can be backdated
+    uint256 public maximumBackdate;
 
     /*/////////////////////////////////////////////////////////////
                         EVENTS
@@ -70,14 +72,17 @@ contract CoinchainStaking is AccessControlEnumerable {
         address _CCHAddress,
         address admin,
         address operator,
-        address manager
+        address manager,
+        uint256 _maximumBackdate
     ) {
         require(_CCHAddress != address(0), "Error: _CCHAddress can't be zero");
+        require(_maximumBackdate != 0, "Error: _maximumBackdate can't be zero");
         CCH = _CCHAddress;
         mintAllowance = 0;
         _setupRole(DEFAULT_ADMIN_ROLE, admin);
         _setupRole(OPERATOR_ROLE, operator);
         _setupRole(MANAGER_ROLE, manager);
+        maximumBackdate = _maximumBackdate;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -127,6 +132,7 @@ contract CoinchainStaking is AccessControlEnumerable {
             require(_deposits[i].data.amount > 0, "Error: Invalid amount");
             require(yieldConfigs[_deposits[i].data.yieldConfigId].rate != 0, "Error: invalid lockup");
             require(deposits[_deposits[i].depositId].user == address(0), "Error: DepositId already exists");
+            require(block.timestamp - _deposits[i].data.depositTime <= maximumBackdate, "Error: DepositTime exceeds max backdate");
             total += _deposits[i].data.amount;
             deposits[_deposits[i].depositId] = _deposits[i].data;
             EnumerableSet.UintSet storage depositSet = depositsByAddress[_deposits[i].data.user];
